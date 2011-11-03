@@ -8,15 +8,13 @@ $file = 'iTunes Music Library.xml';
 //if(file_exists(realpath('./').$file)) die("Biblioteca do iTunes não encontrada. \033[91m[ FAIL ]\033[0m\n\n");
 
 include 'ConsoleInput.php';
-include 'xml_parse.php';
 include 'pr.php';
 
 $library = simplexml_load_file($file);
 
-$iTunes = new Itunes($songs, $library->dict->array->dict, $to_path);
+$iTunes = new Itunes($library, $to_path);
 
 class Itunes {
-  var $songs;
   var $playlists;
   var $playlists_data;
   var $index;
@@ -24,14 +22,13 @@ class Itunes {
   var $stdin;
   var $path;
   
-  function __construct($songs = array(), $playlists_data = array(), $path = ''){
+  function __construct($playlists_data = array(), $path = ''){
     /* Load data */
     $this->stdin = new ConsoleInput('php://stdin');
     $this->welcome();
-    $this->songs = $songs;
-    $this->playlists = $this->process_playlist($playlists_data);
-    $this->playlists_data = $this->process_playlists_data($playlists_data);
-    $this->index = $this->process_index($songs);
+    $this->playlists = $this->process_playlist($playlists_data->dict->array->dict);
+    $this->playlists_data = $this->process_playlists_data($playlists_data->dict->array->dict);
+    $this->index = $this->process_index($playlists_data->dict->dict->dict);
     $this->path = $path;
     $this->check_dependence();
     
@@ -58,7 +55,6 @@ class Itunes {
     }
     
     $this->end();
-    pr(urldecode($this->index['1782']['location']));
   }
   
   function playlist_menu(){
@@ -80,7 +76,6 @@ class Itunes {
       if($this->check_folder($this->playlists[$playlist_id])){
         $this->write(";Enviando músicas... (".count($this->playlists_data[$playlist_id])." músicas)");
         $path = $this->path.'iTunes/'.$this->playlists[$playlist_id].'/';
-        //pr($this->playlists_data[$playlist_id]);
         $i = 0; foreach($this->playlists_data[$playlist_id] as $track){
           $music_path = urldecode($this->index[$track]['location']);
           if(file_exists($music_path)){
@@ -140,14 +135,14 @@ class Itunes {
   function process_index($songs = array()){
     $this->write("Processando índice de músicas...");
     $return = array();
-    foreach($songs as $song){
-      if(isset($song['Location'])){
-        $return[$song['Track ID']] = array(
-          'name' => $song['Name'],
-          'location' => str_replace('file://localhost', '', $song['Location']),
-        );
-      }
+    
+    foreach($songs as $music){
+      $return[(int)$music->integer[0]] = array(
+        'name' => (string) $music->string[0],
+        'location' => str_replace('file://localhost', '', (string) $music->string[count($music->string) -1]),
+      );
     }
+    
     $this->write(" <ok>[ OK ]</c>;");
     return $return;
   }
