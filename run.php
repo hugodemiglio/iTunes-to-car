@@ -2,7 +2,10 @@
 
 echo "\n\nAguarde, iniciando...\n\n";
 
-$to_path = '/Volumes/CARRO/';
+$to_path = '/Users/hugodemiglio/Desktop/CARRO/';
+$file = 'iTunes Music Library.xml';
+
+//if(file_exists(realpath('./').$file)) die("Biblioteca do iTunes não encontrada. \033[91m[ FAIL ]\033[0m\n\n");
 
 include 'ConsoleInput.php';
 include 'xml_parse.php';
@@ -19,6 +22,7 @@ class Itunes {
   var $index;
   var $commands;
   var $stdin;
+  var $path;
   
   function __construct($songs = array(), $playlists_data = array(), $path = ''){
     /* Load data */
@@ -29,12 +33,32 @@ class Itunes {
     $this->playlists_data = $this->process_playlists_data($playlists_data);
     $this->index = $this->process_index($songs);
     $this->path = $path;
+    $this->check_dependence();
     
     /* Process to user */
-    $this->playlist_menu();
+    $process = true;
+    while($process){
+      $choise = trim($this->playlist_menu());
+      
+      $get = true;
+      while($get){
+        if(strtolower($choise) == 'q' OR strtolower($choise) == 's'){
+          $process = false;
+          $get = false;
+        } else if(!$this->is_int($choise) OR ($choise < 0 OR $choise > count($this->playlists)-1)){
+          $this->write(";Opção inválida, entre novamente com a opção. <fail>[ FAIL ]</c>;");
+          $choise = trim($this->get_playlist_menu());
+        } else {
+          $get = false;
+          $this->send_musics($choise);
+          $process = $this->exit_menu();
+        }
+      }
+      
+    }
     
-    //$this->send_musics(19);
-    //pr($this->index['1782']['location']);
+    $this->end();
+    pr(urldecode($this->index['1782']['location']));
   }
   
   function playlist_menu(){
@@ -42,6 +66,10 @@ class Itunes {
     foreach($this->playlists as $key => $playlist){
       $this->write("[".$key."] - ".$playlist.";");
     }
+    return $this->get_playlist_menu();
+  }
+  
+  function get_playlist_menu(){
     $this->write(";[0-".(count($this->playlists)-1)." | Q - quit]: ");
     return $this->stdin->read();
   }
@@ -52,7 +80,7 @@ class Itunes {
       if($this->check_folder($this->playlists[$playlist_id])){
         $this->write(";Enviando músicas... (".count($this->playlists_data[$playlist_id])." músicas)");
         $path = $this->path.'iTunes/'.$this->playlists[$playlist_id].'/';
-        pr($this->playlists_data[$playlist_id]);
+        //pr($this->playlists_data[$playlist_id]);
         $i = 0; foreach($this->playlists_data[$playlist_id] as $track){
           $music_path = urldecode($this->index[$track]['location']);
           if(file_exists($music_path)){
@@ -150,6 +178,13 @@ class Itunes {
     return $return;
   }
   
+  function is_int($var = null){
+    if($var == '0') return true;
+    $var = (int) $var;
+    if($var == 0) return false;
+    return true;
+  }
+  
   function system($command = null){
     $this->commands[] = $command;
     system($command);
@@ -162,6 +197,31 @@ class Itunes {
     $text = str_replace('<info>', "\033[94m", $text); //INFO Color
     $text = str_replace('<fail>', "\033[91m", $text); //FAIL Color
     echo $text;
+  }
+  
+  function check_dependence(){
+    $this->write(";Verificando depêndencias...;");
+    
+    if(!is_dir($this->path)){
+      $this->write("Não foi encontrado o local de destino. <fail>[ FAIL ]</c>;");
+      $this->abort();
+    }
+  }
+  
+  function exit_menu(){
+    $this->write(";Processar uma nova playlist?;[Y/n]: ");
+    $choise = trim($this->stdin->read());
+    if(strtolower($choise) == 'n') return false;
+    return true;
+  }
+  
+  function abort(){
+    $this->write(";Processo abortado.;;");
+    die();
+  }
+  
+  function end(){
+    $this->write(";Processo concluido.;;");
   }
   
   function welcome(){
