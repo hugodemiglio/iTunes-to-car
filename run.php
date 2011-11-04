@@ -2,9 +2,8 @@
 
 echo "\n\nAguarde, iniciando...\n\n";
 
-$volumes_path = '/Users/hugodemiglio/Desktop/CARRO/';
+$volumes_path = '/Volumes/';
 $file = $_SERVER['HOME'].'/Music/iTunes/iTunes Music Library.xml';
-
 
 include 'ConsoleInput.php';
 include 'pr.php';
@@ -37,6 +36,8 @@ class Itunes {
     $this->index = $this->process_index($playlists_data->dict->dict->dict);
     
     /* Process to user */
+    $this->path = $this->select_menu();
+    
     $process = true;
     while($process){
       $choise = trim($this->playlist_menu());
@@ -61,6 +62,45 @@ class Itunes {
     $this->end();
   }
   
+  function select_menu(){
+    $this->write(";Selecione qual pendrive deseja utilizar:;;");
+    $contents = $this->get_dir_contents($this->path);
+    foreach($contents as $key => $name){
+      $this->write("[".$key."] - ".$name['name'].";");
+    }
+    
+    $get = true;
+    while($get){
+      $this->write(";[0-".(count($contents)-1)."]: ");
+      $choise = trim($this->stdin->read());
+      
+      if(!$this->is_int($choise) OR ($choise < 0 OR $choise > count($contents)-1)){
+        $this->write(";Opção inválida, entre novamente com a opção. <fail>[ FAIL ]</c>;");
+      } else {
+        $get = false;
+        return $contents[$choise]['location'];
+      }
+    }
+  }
+  
+  function get_dir_contents($path = null){
+    if(is_dir($path)){
+      $dh = opendir($path);
+      $dirs = array();
+      while (($name = readdir($dh)) !== false){
+        if($name == '.' OR $name == '..' OR $name == 'Macintosh') continue;
+        if(is_dir($path.'/'.$name)){
+          $dirs[] = array(
+            'name' => $name,
+            'location' => $path.$name.'/',
+          );
+        }
+      }
+      closedir($dh);
+    }
+    return $dirs;
+  }
+  
   function playlist_menu(){
     $this->write(";Selecione a playlist que deseja importar:;;");
     foreach($this->playlists as $key => $playlist){
@@ -78,15 +118,21 @@ class Itunes {
     if(isset($this->playlists[$playlist_id])){
       $this->write(";Preparando para enviar playlist '".$this->playlists[$playlist_id]."'... <ok> [ OK ]</c>;");
       if($this->check_folder($this->playlists[$playlist_id])){
-        $this->write(";Enviando músicas... (".count($this->playlists_data[$playlist_id])." músicas)");
+        $this->write(";Enviando músicas... (".count($this->playlists_data[$playlist_id])." músicas);");
         $path = $this->path.'iTunes/'.$this->playlists[$playlist_id].'/';
         $i = 0; foreach($this->playlists_data[$playlist_id] as $track){
           $music_path = urldecode($this->index[$track]['location']);
           if(file_exists($music_path)){
-            $this->system("cp ".$this->command_name($music_path)." ".$this->command_name($path.$this->index[$track]['name'].".mp3"));
+            $this->write("Copiando ".$this->index[$track]['name']."...");
+            $this->index[$track]['name'] = str_replace('/', ' ', $this->index[$track]['name']);
+            if(file_exists($path.$this->index[$track]['name'].".mp3")) $this->write(" <info>[ ALREADY ]</c>;");
+            else {
+              $this->system("cp ".$this->command_name($music_path)." ".$this->command_name($path.$this->index[$track]['name'].".mp3"));
+              $this->write(" <ok>[ OK ]</c>;");
+            }
           } else $i++;
         }
-        $this->write(" <ok>[ OK ]</c>;");
+        //$this->write(" <ok>[ OK ]</c>;");
         if($i > 0) $this->write("Algumas músicas não foram encontradas. (".$i." músicas) <fail>[ FAIL ]</c>;");
       } else {
         $this->write("Ocorreu um erro ao verificar os diretórios. <fail>[ FAIL ]</c>;");
@@ -203,12 +249,17 @@ class Itunes {
     $abort = false;
     
     if(!is_dir($this->path)){
-      $this->write("Não foi encontrado o local de destino. <fail>[ FAIL ]</c>;");
+      $this->write("Não foi encontrado o local de volumes. <fail>[ FAIL ]</c>;");
       $abort = true;
     }
     
     if(!file_exists($this->file)){
       $this->write("Não foi encontrada a biblioteca do iTunes. <fail>[ FAIL ]</c>;");
+      $abort = true;
+    }
+    
+    if(count($this->get_dir_contents($this->path)) == 0){
+      $this->write("Nenhum pendrive foi encontrado. <fail>[ FAIL ]</c>;");
       $abort = true;
     }
     
