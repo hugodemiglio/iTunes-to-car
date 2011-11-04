@@ -2,17 +2,14 @@
 
 echo "\n\nAguarde, iniciando...\n\n";
 
-$to_path = '/Users/hugodemiglio/Desktop/CARRO/';
-$file = 'iTunes Music Library.xml';
+$volumes_path = '/Users/hugodemiglio/Desktop/CARRO/';
+$file = $_SERVER['HOME'].'/Music/iTunes/iTunes Music Library.xml';
 
-//if(file_exists(realpath('./').$file)) die("Biblioteca do iTunes não encontrada. \033[91m[ FAIL ]\033[0m\n\n");
 
 include 'ConsoleInput.php';
 include 'pr.php';
 
-$library = simplexml_load_file($file);
-
-$iTunes = new Itunes($library, $to_path);
+$iTunes = new Itunes($file, $volumes_path);
 
 class Itunes {
   var $playlists;
@@ -21,16 +18,23 @@ class Itunes {
   var $commands;
   var $stdin;
   var $path;
+  var $file;
   
-  function __construct($playlists_data = array(), $path = ''){
-    /* Load data */
+  function __construct($file, $path = ''){
+    /* Load basic data */
     $this->stdin = new ConsoleInput('php://stdin');
+    $this->path = $path;
+    $this->file = $file;
+    
+    /* Init system */
     $this->welcome();
+    $this->check_dependence();
+    
+    /* Process data */
+    $playlists_data = simplexml_load_file($file);
     $this->playlists = $this->process_playlist($playlists_data->dict->array->dict);
     $this->playlists_data = $this->process_playlists_data($playlists_data->dict->array->dict);
     $this->index = $this->process_index($playlists_data->dict->dict->dict);
-    $this->path = $path;
-    $this->check_dependence();
     
     /* Process to user */
     $process = true;
@@ -195,12 +199,20 @@ class Itunes {
   }
   
   function check_dependence(){
-    $this->write(";Verificando depêndencias...;");
+    $this->write(";Verificando depêndencias...;;");
+    $abort = false;
     
     if(!is_dir($this->path)){
       $this->write("Não foi encontrado o local de destino. <fail>[ FAIL ]</c>;");
-      $this->abort();
+      $abort = true;
     }
+    
+    if(!file_exists($this->file)){
+      $this->write("Não foi encontrada a biblioteca do iTunes. <fail>[ FAIL ]</c>;");
+      $abort = true;
+    }
+    
+    if($abort) $this->abort();
   }
   
   function exit_menu(){
@@ -224,7 +236,7 @@ class Itunes {
     $this->write("╔═══════════════════════════════╗;");
     $this->write("║  iTunes to car    1.0.0 beta  ║;");
     $this->write("╚═══════════════════════════════╝;");
-    $this->write(";Buscando playlists do iTunes...;;");
+    $this->write(";Buscando playlists do iTunes...;");
   }
   
 }
