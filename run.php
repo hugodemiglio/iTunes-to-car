@@ -3,6 +3,7 @@
 echo "\n\nAguarde, iniciando...\n\n";
 
 $volumes_path = '/Volumes/';
+$volumes_path = '/Users/hugodemiglio/Desktop/';
 $file = $_SERVER['HOME'].'/Music/iTunes/iTunes Music Library.xml';
 
 include 'ConsoleInput.php';
@@ -18,6 +19,7 @@ class Itunes {
   var $stdin;
   var $path;
   var $file;
+  var $founded = array();
   
   function __construct($file, $path = ''){
     /* Load basic data */
@@ -37,6 +39,9 @@ class Itunes {
     
     /* Process to user */
     $this->path = $this->select_menu();
+    
+    /* Update data */
+    $this->update();
     
     $process = true;
     while($process){
@@ -114,20 +119,23 @@ class Itunes {
     return $this->stdin->read();
   }
   
-  function send_musics($playlist_id = 0){
+  function send_musics($playlist_id = 0, $update = false){
     if(isset($this->playlists[$playlist_id])){
-      $this->write(";Preparando para enviar playlist '".$this->playlists[$playlist_id]."'... <ok> [ OK ]</c>;");
+      if(!$update) $this->write(";Preparando para enviar playlist '".$this->playlists[$playlist_id]."'... <ok> [ OK ]</c>;");
       if($this->check_folder($this->playlists[$playlist_id])){
-        $this->write(";Enviando músicas... (".count($this->playlists_data[$playlist_id])." músicas);");
+        if(!$update) $this->write(";Enviando músicas... (".count($this->playlists_data[$playlist_id])." músicas);");
         $path = $this->path.'iTunes/'.$this->playlists[$playlist_id].'/';
+        $musics_in_path = $this->read_folder($path);
+        $this->delete_musics($musics_in_path, $this->playlists_data[$playlist_id], $path);
         $i = 0; foreach($this->playlists_data[$playlist_id] as $track){
           $music_path = urldecode($this->index[$track]['location']);
           if(file_exists($music_path)){
+            //$this->write($path." <info>[ DEBUG ]</c>;");
             $this->write("Copiando ".$this->index[$track]['name']."...");
             $this->index[$track]['name'] = str_replace('/', ' ', $this->index[$track]['name']);
-            if(file_exists($path.$this->index[$track]['name'].".mp3")) $this->write(" <info>[ ALREADY ]</c>;");
+            if(file_exists($path.$this->index[$track]['name'].$this->index[$track]['extencion'])) $this->write(" <info>[ ALREADY ]</c>;");
             else {
-              $this->system("cp ".$this->command_name($music_path)." ".$this->command_name($path.$this->index[$track]['name'].".mp3"));
+              $this->system("cp ".$this->command_name($music_path)." ".$this->command_name($path.$this->index[$track]['name'].$this->index[$track]['extencion']));
               $this->write(" <ok>[ OK ]</c>;");
             }
           } else $i++;
@@ -142,6 +150,39 @@ class Itunes {
     }
   }
   
+  function delete_musics($in_folder, $in_list, $path){
+    $in_list = $this->resolve($in_list, 'name');
+    $to_delete = array();
+    foreach($in_folder as $music){
+      $music_name = str_replace($this->get_extencion($music), '', $music);
+      if(!isset($in_list[$music_name]['name'])) {
+        $this->write("Deletando música '".$music_name."'...");
+        $this->system("rm ".$this->command_name($path.$music));
+        $this->write(" <fail>[ DELETED ]</c>;");
+      }
+    }
+  }
+  
+  function resolve($list = array(), $mode = 'original_id'){
+    $return = array();
+    foreach($list as $id){
+      switch($mode){
+        case 'original_id':
+        $return[] = $this->index[$id];
+        break;
+        
+        case 'music_id':
+        $return[$id] = $this->index[$id];
+        break;
+        
+        case 'name':
+        $return[$this->index[$id]['name']] = $this->index[$id];
+        break;
+      }
+    }
+    return $return;
+  }
+  
   function check_folder($playlist_name = ''){
     $this->write(";Verificando diretórios...;");
     if($this->mkdir('iTunes')){
@@ -153,6 +194,45 @@ class Itunes {
     return false;
   }
   
+  function update(){
+    $playlists = $this->read_folder($this->path.'iTunes/', false);
+    $this->write(";Verificando por atualizações de músicas...;Aguarde...;");
+    
+    foreach($playlists as $playlist){
+      $name = explode('/', $playlist);
+      $name = $name[count($name)-1];
+      
+      $playlist = array_search($name, $this->playlists);
+      
+      if($this->playlists[$playlist] == $name){
+        $this->founded[$playlist] = true;
+        $this->send_musics($playlist, true);
+
+        $this->write("Playlist '".$name."' atualizada <ok>[ OK ]</c>;");
+      }
+      
+    }
+  }
+  
+  function read_folder($path, $only_files = true){
+    if(is_dir($path)){
+      $dh = opendir($path);
+      $files = array();
+      $dirs = array();
+      while (($file = readdir($dh)) !== false){
+        if(substr($file, 0, 1) == '.') continue;
+        if(is_dir($path.'/'.$file)){
+          array_push($dirs, $path.'/'.$file);
+        } else {
+          array_push($files, $file);
+        }
+      }
+      closedir($dh);
+    }
+    if($only_files) return $files;
+    else return $dirs;
+  }
+  
   function mkdir($path = null){
     $this->write("Criando diretório '".$path."'...");
     $path = $this->path.'/'.($path);
@@ -162,8 +242,10 @@ class Itunes {
         $this->write(" <fail>[ FAIL ]</c>;");
         return false;
       }
+      $this->write(" <ok>[ OK ]</c>;");
+    } else {
+      $this->write(" <info>[ ALREADY ]</c>;");
     }
-    $this->write(" <ok>[ OK ]</c>;");
     return true;
   }
   
@@ -187,14 +269,22 @@ class Itunes {
     $return = array();
     
     foreach($songs as $music){
+      $location = str_replace('file://localhost', '', (string) $music->string[count($music->string) -1]);
+      
       $return[(int)$music->integer[0]] = array(
         'name' => (string) $music->string[0],
-        'location' => str_replace('file://localhost', '', (string) $music->string[count($music->string) -1]),
+        'location' => $location,
+        'extencion' => $this->get_extencion($location),
       );
     }
     
     $this->write(" <ok>[ OK ]</c>;");
     return $return;
+  }
+  
+  function get_extencion($name = null){
+    $name = explode('.', $name);
+    return '.'.$name[count($name)-1];
   }
   
   function process_playlists_data($playlist_data){
