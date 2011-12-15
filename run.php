@@ -3,7 +3,7 @@
 echo "\n\nAguarde, iniciando...\n\n";
 
 $volumes_path = '/Volumes/';
-$volumes_path = '/Users/hugodemiglio/Desktop/';
+//$volumes_path = '/Users/hugodemiglio/Desktop/';
 $file = $_SERVER['HOME'].'/Music/iTunes/iTunes Music Library.xml';
 
 include 'ConsoleInput.php';
@@ -22,6 +22,8 @@ class Itunes {
   var $founded = array();
   
   function __construct($file, $path = ''){
+    echo $this->adapt_string("Este coração é muito bonito! CORAÇÃO!! =D");
+    
     /* Load basic data */
     $this->stdin = new ConsoleInput('php://stdin');
     $this->path = $path;
@@ -107,9 +109,12 @@ class Itunes {
   }
   
   function playlist_menu(){
+    $this->system("clear");
     $this->write(";Selecione a playlist que deseja importar:;;");
     foreach($this->playlists as $key => $playlist){
-      $this->write("[".$key."] - ".$playlist.";");
+      $this->write("[".$key."] - ".$playlist."");
+      if(isset($this->founded[$key])) $this->write(" <info>[ ALREADY ]</c>;");
+      else $this->write(";");
     }
     return $this->get_playlist_menu();
   }
@@ -272,7 +277,7 @@ class Itunes {
       $location = str_replace('file://localhost', '', (string) $music->string[count($music->string) -1]);
       
       $return[(int)$music->integer[0]] = array(
-        'name' => (string) $music->string[0],
+        'name' => (string) $this->adapt_string($music->string[0]),
         'location' => $location,
         'extencion' => $this->get_extencion($location),
       );
@@ -280,6 +285,32 @@ class Itunes {
     
     $this->write(" <ok>[ OK ]</c>;");
     return $return;
+  }
+  
+  function adapt_string($string, $limit = 60, $include_last = false){
+    $replaces = array(
+      'a' => array('á', 'ã', 'à', 'â'),
+      'A' => array('Á', 'Ã', 'À', 'Â'),
+      'e' => array('é', 'è', 'ê'),
+      'E' => array('É', 'È', 'Ê'),
+      'i' => array('í', 'ì', 'î'),
+      'I' => array('Í', 'Ì', 'Î'),
+      'o' => array('ó', 'õ', 'ò', 'ô'),
+      'O' => array('Ó', 'Õ', 'Ò', 'Ô'),
+      'u' => array('ú', 'ù', 'û'),
+      'U' => array('Ú', 'Ù', 'Û'),
+      'c' => array('ç'),
+      'C' => array('Ç'),
+      '' => array('!', '?', '@', '$', '%', '&', '*', '=')
+    );
+    foreach($replaces as $to => $replace){
+      foreach($replace as $find){
+        $string = str_replace($find, $to, $string);
+      }
+    }
+    $len = strlen($string);
+    if($len > $limit) $string = substr($string, 0, (!$include_last ? $limit : $limit - strlen($include_last))) . ($include_last ? $include_last : '');
+    return $string;
   }
   
   function get_extencion($name = null){
