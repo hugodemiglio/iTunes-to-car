@@ -22,7 +22,6 @@ class Itunes {
   var $founded = array();
   
   function __construct($file, $path = ''){
-    echo $this->adapt_string("Este coração é muito bonito! CORAÇÃO!! =D");
     
     /* Load basic data */
     $this->stdin = new ConsoleInput('php://stdin');
@@ -301,7 +300,8 @@ class Itunes {
       'U' => array('Ú', 'Ù', 'Û'),
       'c' => array('ç'),
       'C' => array('Ç'),
-      '' => array('!', '?', '@', '$', '%', '&', '*', '=')
+      ' ' => array('/'), 
+      '' => array('!', '?', '@', '$', '%', '&', '*', '=', ',', "'", '"')
     );
     foreach($replaces as $to => $replace){
       foreach($replace as $find){
