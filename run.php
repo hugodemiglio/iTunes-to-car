@@ -1,15 +1,13 @@
 <?php
 
-echo "\n\nAguarde, iniciando...\n\n";
+include 'config.php';
 
-$volumes_path = '/Volumes/';
-//$volumes_path = '/Users/hugodemiglio/Desktop/';
-$file = $_SERVER['HOME'].'/Music/iTunes/iTunes Music Library.xml';
+echo "\n\nAguarde, iniciando...\n\n";
 
 include 'ConsoleInput.php';
 include 'pr.php';
 
-$iTunes = new Itunes($file, $volumes_path);
+$iTunes = new Itunes($iTunesConfiguration);
 
 class Itunes {
   var $playlists;
@@ -19,21 +17,23 @@ class Itunes {
   var $stdin;
   var $path;
   var $file;
+  var $config;
   var $founded = array();
   
-  function __construct($file, $path = ''){
+  function __construct($iTunesConfiguration){
     
     /* Load basic data */
     $this->stdin = new ConsoleInput('php://stdin');
-    $this->path = $path;
-    $this->file = $file;
+    $this->path = $iTunesConfiguration['volume-path'];
+    $this->file = str_replace('~', $_SERVER['HOME'], $iTunesConfiguration['iTunes-xml']);
+    $this->config = $iTunesConfiguration;
     
     /* Init system */
     $this->welcome();
     $this->check_dependence();
     
     /* Process data */
-    $playlists_data = simplexml_load_file($file);
+    $playlists_data = @simplexml_load_file($this->file) or die($this->write("Biblioteca do iTunes invalida. <fail>[ FAIL ]</c>;;"));
     $this->playlists = $this->process_playlist($playlists_data->dict->array->dict);
     $this->playlists_data = $this->process_playlists_data($playlists_data->dict->array->dict);
     $this->index = $this->process_index($playlists_data->dict->dict->dict);
@@ -77,10 +77,13 @@ class Itunes {
     
     $get = true;
     while($get){
-      $this->write(";[0-".(count($contents)-1)."]: ");
+      $this->write(";[0-".(count($contents)-1)." | Q - quit]: ");
       $choise = trim($this->stdin->read());
       
-      if(!$this->is_int($choise) OR ($choise < 0 OR $choise > count($contents)-1)){
+      if(strtolower($choise) == 'q' OR strtolower($choise) == 's'){
+        $this->end();
+        die();
+      } elseif(!$this->is_int($choise) OR ($choise < 0 OR $choise > count($contents)-1)){
         $this->write(";Opção inválida, entre novamente com a opção. <fail>[ FAIL ]</c>;");
       } else {
         $get = false;
@@ -94,7 +97,17 @@ class Itunes {
       $dh = opendir($path);
       $dirs = array();
       while (($name = readdir($dh)) !== false){
-        if($name == '.' OR $name == '..' OR $name == 'Macintosh') continue;
+        
+        if(isset($this->config['volume-ignore']) AND is_array($this->config['volume-ignore'])){
+          $continue = false;
+          foreach($this->config['volume-ignore'] as $volume_ignore){
+            if(trim($name) == trim($volume_ignore)) $continue = true;;
+          }
+          
+        }
+        
+        if($name == '.' OR $name == '..' OR $continue) continue;
+        
         if(is_dir($path.'/'.$name)){
           $dirs[] = array(
             'name' => $name,
@@ -374,6 +387,11 @@ class Itunes {
       $abort = true;
     }
     
+    if(empty($this->file)){
+      $this->write("Não foi encontrada a biblioteca do iTunes nas configurações. <fail>[ FAIL ]</c>;");
+      $abort = true;
+    }
+    
     if(!file_exists($this->file)){
       $this->write("Não foi encontrada a biblioteca do iTunes. <fail>[ FAIL ]</c>;");
       $abort = true;
@@ -382,6 +400,10 @@ class Itunes {
     if(count($this->get_dir_contents($this->path)) == 0){
       $this->write("Nenhum pendrive foi encontrado. <fail>[ FAIL ]</c>;");
       $abort = true;
+    }
+    
+    if(!(isset($this->config['volume-ignore']) AND is_array($this->config['volume-ignore']))){
+      $this->write("Configuração volume-ignore inválida. <info>[ INFO ]</c>;");
     }
     
     if($abort) $this->abort();
@@ -401,6 +423,13 @@ class Itunes {
   
   function end(){
     $this->write(";Processo concluido.;;");
+    
+    if($this->config['noHiddens-config']['status']){
+      if($this->path != $this->config['volume-path']){
+        $command = str_replace('$ARGS', $this->path, $this->config['noHiddens-config']['location']);
+        system(substr($command, 0, strlen($command)-1));
+      }
+    }
   }
   
   function welcome(){
