@@ -15,12 +15,12 @@ $iTunesConfiguration = array(
   
   /* Use the module to remove hidden files Mac (https://github.com/hugodemiglio/noHiddens) */
   'noHiddens-config' => array(
-    'status' => true,
+    'status' => false,
     'location' => 'php ~/Documents/noHiddens/run $ARGS',
   ),
   
   /* Set language (pt-BR "Brazillian Portuguese" ou en-US "American English") */
-  'default-locate' => 'pt-BR',
+  'default-locate' => 'en-US',
 );
 
 ?>

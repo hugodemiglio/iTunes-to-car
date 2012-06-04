@@ -1,13 +1,14 @@
 <?php
 
 include 'config.php';
+include 'locales.php';
 
 echo "\n\nAguarde, iniciando...\n\n";
 
 include 'ConsoleInput.php';
 include 'pr.php';
 
-$iTunes = new Itunes($iTunesConfiguration);
+$iTunes = new Itunes($iTunesConfiguration, $locales);
 
 class Itunes {
   var $playlists;
@@ -20,20 +21,21 @@ class Itunes {
   var $config;
   var $founded = array();
   
-  function __construct($iTunesConfiguration){
+  function __construct($iTunesConfiguration, $locales){
     
     /* Load basic data */
     $this->stdin = new ConsoleInput('php://stdin');
     $this->path = $iTunesConfiguration['volume-path'];
     $this->file = str_replace('~', $_SERVER['HOME'], $iTunesConfiguration['iTunes-xml']);
     $this->config = $iTunesConfiguration;
+    $this->locales = $locales;
     
     /* Init system */
     $this->welcome();
     $this->check_dependence();
     
     /* Process data */
-    $playlists_data = @simplexml_load_file($this->file) or die($this->write("Biblioteca do iTunes invalida. <fail>[ FAIL ]</c>;;"));
+    $playlists_data = @simplexml_load_file($this->file) or die($this->write("#invalid-library&"));
     $this->playlists = $this->process_playlist($playlists_data->dict->array->dict);
     $this->playlists_data = $this->process_playlists_data($playlists_data->dict->array->dict);
     $this->index = $this->process_index($playlists_data->dict->dict->dict);
@@ -54,7 +56,7 @@ class Itunes {
           $process = false;
           $get = false;
         } else if(!$this->is_int($choise) OR ($choise < 0 OR $choise > count($this->playlists)-1)){
-          $this->write(";Opção inválida, entre novamente com a opção. <fail>[ FAIL ]</c>;");
+          $this->write("#invalid-option&");
           $choise = trim($this->get_playlist_menu());
         } else {
           $get = false;
@@ -69,7 +71,7 @@ class Itunes {
   }
   
   function select_menu(){
-    $this->write(";Selecione qual pendrive deseja utilizar:;;");
+    $this->write("#select-drive&");
     $contents = $this->get_dir_contents($this->path);
     foreach($contents as $key => $name){
       $this->write("[".$key."] - ".$name['name'].";");
@@ -84,7 +86,7 @@ class Itunes {
         $this->end();
         die();
       } elseif(!$this->is_int($choise) OR ($choise < 0 OR $choise > count($contents)-1)){
-        $this->write(";Opção inválida, entre novamente com a opção. <fail>[ FAIL ]</c>;");
+        $this->write("#invalid-option&");
       } else {
         $get = false;
         return $contents[$choise]['location'];
@@ -122,7 +124,7 @@ class Itunes {
   
   function playlist_menu(){
     $this->system("clear");
-    $this->write(";Selecione a playlist que deseja importar:;;");
+    $this->write("#select-playlist&");
     foreach($this->playlists as $key => $playlist){
       $this->write("[".$key."] - ".$playlist."");
       if(isset($this->founded[$key])) $this->write(" <info>[ ALREADY ]</c>;");
@@ -138,9 +140,9 @@ class Itunes {
   
   function send_musics($playlist_id = 0, $update = false){
     if(isset($this->playlists[$playlist_id])){
-      if(!$update) $this->write(";Preparando para enviar playlist '".$this->playlists[$playlist_id]."'... <ok> [ OK ]</c>;");
+      if(!$update) $this->write("#preparing-playlist&", array($this->playlists[$playlist_id]));
       if($this->check_folder($this->playlists[$playlist_id])){
-        if(!$update) $this->write(";Enviando músicas... (".count($this->playlists_data[$playlist_id])." músicas);");
+        if(!$update) $this->write("#sending-musics&", array(count($this->playlists_data[$playlist_id])));
         $path = $this->path.'iTunes/'.$this->playlists[$playlist_id].'/';
         $musics_in_path = $this->read_folder($path);
         $this->delete_musics($musics_in_path, $this->playlists_data[$playlist_id], $path);
@@ -148,7 +150,7 @@ class Itunes {
           $music_path = urldecode($this->index[$track]['location']);
           if(file_exists($music_path)){
             //$this->write($path." <info>[ DEBUG ]</c>;");
-            $this->write("Copiando ".$this->index[$track]['name']."...");
+            $this->write("#copying&", array($this->index[$track]['name']));
             $this->index[$track]['name'] = str_replace('/', ' ', $this->index[$track]['name']);
             if(file_exists($path.$this->index[$track]['name'].$this->index[$track]['extencion'])) $this->write(" <info>[ ALREADY ]</c>;");
             else {
@@ -158,12 +160,12 @@ class Itunes {
           } else $i++;
         }
         //$this->write(" <ok>[ OK ]</c>;");
-        if($i > 0) $this->write("Algumas músicas não foram encontradas. (".$i." músicas) <fail>[ FAIL ]</c>;");
+        if($i > 0) $this->write("#not-found-musics&", array($i));
       } else {
-        $this->write("Ocorreu um erro ao verificar os diretórios. <fail>[ FAIL ]</c>;");
+        $this->write("#directory-verification-error&");
       }
     } else {
-      $this->write("A playlist informada não foi encontrada. <fail>[ FAIL ]</c>;");
+      $this->write("#not-found-playlist&");
     }
   }
   
@@ -173,7 +175,7 @@ class Itunes {
     foreach($in_folder as $music){
       $music_name = str_replace($this->get_extencion($music), '', $music);
       if(!isset($in_list[$music_name]['name'])) {
-        $this->write("Deletando música '".$music_name."'...");
+        $this->write("#deleting-music&", array($music_name));
         $this->system("rm ".$this->command_name($path.$music));
         $this->write(" <fail>[ DELETED ]</c>;");
       }
@@ -201,7 +203,7 @@ class Itunes {
   }
   
   function check_folder($playlist_name = ''){
-    $this->write(";Verificando diretórios...;");
+    $this->write("#checking-directories&");
     if($this->mkdir('iTunes')){
       $path = $path.'iTunes/'.$playlist_name;
       if($this->mkdir($path)){
@@ -213,7 +215,7 @@ class Itunes {
   
   function update(){
     $playlists = $this->read_folder($this->path.'iTunes/', false);
-    $this->write(";Verificando por atualizações de músicas...;Aguarde...;");
+    $this->write("#checking-updates&");
     
     foreach($playlists as $playlist){
       $name = explode('/', $playlist);
@@ -225,7 +227,7 @@ class Itunes {
         $this->founded[$playlist] = true;
         $this->send_musics($playlist, true);
 
-        $this->write("Playlist '".$name."' atualizada <ok>[ OK ]</c>;");
+        $this->write("#playlist-updated&", array($name));
       }
       
     }
@@ -251,7 +253,7 @@ class Itunes {
   }
   
   function mkdir($path = null){
-    $this->write("Criando diretório '".$path."'...");
+    $this->write("#creating-directory&", array($path));
     $path = $this->path.'/'.($path);
     if(!is_dir($path)){
       $this->system("mkdir ".$this->command_name($path));
@@ -282,7 +284,7 @@ class Itunes {
   }
   
   function process_index($songs = array()){
-    $this->write("Processando índice de músicas...");
+    $this->write("#processing-musics&");
     $return = array();
     
     foreach($songs as $music){
@@ -332,7 +334,7 @@ class Itunes {
   }
   
   function process_playlists_data($playlist_data){
-    $this->write("Processando músicas das playlists...");
+    $this->write("#processing-music-playlists&");
     $return = array();
     $i = 0; foreach($playlist_data as $key => $playlist){
       $return[$i] = array();
@@ -347,7 +349,7 @@ class Itunes {
   }
   
   function process_playlist($playlist_data){
-    $this->write("Processando lista de playlists...");
+    $this->write("#processing-playlists&");
     $return = array();
     $i = 0; foreach($playlist_data as $key => $playlist){
       $return[$i] = (string) $playlist->string[0];
@@ -369,7 +371,14 @@ class Itunes {
     system($command);
   }
   
-  function write($text){
+  function write($text, $args = array()){
+    if(substr($text, 0, 1) == '#' AND substr($text, strlen($text)-1, strlen($text)) == '&'){
+      $text = $this->locales[$this->config['default-locate']][substr($text, 1, strlen($text)-2)];
+      foreach($args as $i => $arg){
+        $text = str_replace('ARG'.$i, $arg, $text);
+      }
+    }
+    
     $text = str_replace(';', "\n", $text);
     $text = str_replace('</c>', "\033[0m", $text); //Normal Color
     $text = str_replace('<ok>', "\033[92m", $text); //OK Color
@@ -379,50 +388,50 @@ class Itunes {
   }
   
   function check_dependence(){
-    $this->write(";Verificando depêndencias...;;");
+    $this->write("#checking-dependencies&");
     $abort = false;
     
     if(!is_dir($this->path)){
-      $this->write("Não foi encontrado o local de volumes. <fail>[ FAIL ]</c>;");
+      $this->write("#not-found-volumes&");
       $abort = true;
     }
     
     if(empty($this->file)){
-      $this->write("Não foi encontrada a biblioteca do iTunes nas configurações. <fail>[ FAIL ]</c>;");
+      $this->write("#not-found-library-config&");
       $abort = true;
     }
     
     if(!file_exists($this->file)){
-      $this->write("Não foi encontrada a biblioteca do iTunes. <fail>[ FAIL ]</c>;");
+      $this->write("#not-found-library&");
       $abort = true;
     }
     
     if(count($this->get_dir_contents($this->path)) == 0){
-      $this->write("Nenhum pendrive foi encontrado. <fail>[ FAIL ]</c>;");
+      $this->write("#not-found-device&");
       $abort = true;
     }
     
     if(!(isset($this->config['volume-ignore']) AND is_array($this->config['volume-ignore']))){
-      $this->write("Configuração volume-ignore inválida. <info>[ INFO ]</c>;");
+      $this->write("#volume-config-error&");
     }
     
     if($abort) $this->abort();
   }
   
   function exit_menu(){
-    $this->write(";Processar uma nova playlist?;[Y/n]: ");
+    $this->write("#process-new-playlist&");
     $choise = trim($this->stdin->read());
     if(strtolower($choise) == 'n') return false;
     return true;
   }
   
   function abort(){
-    $this->write(";Processo abortado.;;");
+    $this->write("#aborted-process&");
     die();
   }
   
   function end(){
-    $this->write(";Processo concluido.;;");
+    $this->write("#process-done&");
     
     if($this->config['noHiddens-config']['status']){
       if($this->path != $this->config['volume-path']){
@@ -437,7 +446,7 @@ class Itunes {
     $this->write("╔═══════════════════════════════╗;");
     $this->write("║  iTunes to car    1.0.0 beta  ║;");
     $this->write("╚═══════════════════════════════╝;");
-    $this->write(";Buscando playlists do iTunes...;");
+    $this->write("#searching-playlists&");
   }
   
 }
